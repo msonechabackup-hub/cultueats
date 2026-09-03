@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CultuEats - Culinary Discovery & Reservations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      
+      <div class="flex items-center gap-2 cursor-pointer" onclick="switchView('discover')">
+        <div class="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md shadow-rose-200">CE</div>
+        <span class="text-xl font-bold text-slate-900 tracking-tight">CultuEats</span>
+      </div>
+
+      <div class="hidden md:flex items-center border border-slate-200 shadow-sm rounded-full py-2 px-4 hover:shadow-md transition cursor-pointer divide-x divide-slate-200">
+        <input id="search-city" type="text" placeholder="City (e.g. Ahmedabad)" class="px-3 text-xs font-semibold bg-transparent focus:outline-none w-36">
+        <input id="search-cuisine" type="text" placeholder="Cuisine / Dish" class="px-3 text-xs font-semibold bg-transparent focus:outline-none w-32">
+        <button onclick="executeSearch()" class="bg-rose-500 hover:bg-rose-600 text-white p-2 rounded-full ml-2 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button onclick="switchView('staff')" class="hidden lg:block text-xs font-semibold text-slate-600 hover:bg-slate-100 px-3 py-2 rounded-full transition">Partner Portal</button>
+        <button onclick="openTermsModal()" class="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2 py-1">Terms</button>
+        
+        <div id="auth-unlogged" class="flex items-center gap-2">
+          <button onclick="openAuthModal('login')" class="text-xs font-semibold border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-full transition">Log in</button>
+          <button onclick="openAuthModal('register')" class="text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-full shadow-sm transition">Sign up</button>
+        </div>
+
+        <div id="auth-logged" class="hidden flex items-center gap-2">
+          <button onclick="openUserProfile('Aarav Sharma')" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition">
+            <span class="w-6 h-6 bg-rose-500 text-white rounded-full text-xs font-bold flex items-center justify-center" id="user-avatar">A</span>
+            <span id="user-name-display" class="text-xs font-bold text-slate-700">Aarav Sharma</span>
+          </button>
+          <button onclick="logout()" class="text-xs text-slate-400 hover:text-rose-500 font-medium px-2 py-1">Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-6 flex-1 w-full">
+
+    <section id="view-discover" class="space-y-6">
+      <div class="flex items-center gap-4 overflow-x-auto no-scrollbar pb-2 border-b border-slate-100 text-xs font-semibold text-slate-500">
+        <button class="flex items-center gap-2 border-b-2 border-slate-900 text-slate-900 pb-2 whitespace-nowrap">✨ All Spots</button>
+        <button class="hover:text-slate-900 pb-2 whitespace-nowrap">🍛 Heritage Thali</button>
+        <button class="hover:text-slate-900 pb-2 whitespace-nowrap">🥢 Dim Sum & Pan-Asian</button>
+        <button class="hover:text-slate-900 pb-2 whitespace-nowrap">⚡ Happy Hour Off-Peak</button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-4">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl font-extrabold text-slate-900">Explore Restaurants</h2>
+            <span class="text-xs text-slate-400" id="resto-count">Showing verified venues</span>
+          </div>
+          <div id="restaurant-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+        </div>
+
+        <div class="lg:col-span-1">
+          <div class="sticky top-28 bg-white rounded-2xl border border-slate-200 shadow-sm p-2">
+            <div id="map" class="h-[520px] rounded-xl z-10"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-portfolio" class="hidden space-y-8 max-w-5xl mx-auto">
+      <button onclick="switchView('discover')" class="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-rose-500 transition">
+        ← Back to listings
+      </button>
+
+      <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+        <div class="relative h-72 bg-slate-900">
+          <img id="port-cover" src="" class="w-full h-full object-cover opacity-80" alt="Restaurant Ambiance">
+          <div class="absolute bottom-6 left-6 right-6 flex justify-between items-end text-white">
+            <div class="space-y-2">
+              <div class="flex items-center gap-2" id="port-badges"></div>
+              <h1 id="port-title" class="text-3xl font-black"></h1>
+              <p id="port-address" class="text-xs text-slate-200">📍 </p>
+              <p id="port-timings" class="text-xs text-emerald-300 font-semibold">🕒 Operating Hours: 12:00 PM – 11:30 PM</p>
+            </div>
+            <div class="bg-white/90 backdrop-blur-md text-slate-900 px-4 py-2 rounded-2xl text-center">
+              <span id="port-rating" class="text-lg font-black block">★ 4.8</span>
+              <span class="text-[10px] text-slate-500 font-semibold">Verified Reviews</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="section-menu" class="p-8 space-y-8 bg-slate-50/50">
+          <div class="text-center max-w-xl mx-auto space-y-2">
+            <span class="text-xs font-bold text-rose-500 uppercase tracking-widest">Culinary Menu & Pre-Ordering</span>
+            <h2 class="text-2xl font-black text-slate-900">Select Dishes to Pre-Order</h2>
+            <p class="text-xs text-slate-500">Items selected will be prepped for your reserved time!</p>
+          </div>
+          <div id="port-big-menu" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+        </div>
+
+        <div class="p-8 bg-white border-t border-slate-200 space-y-6">
+          <h3 class="text-xl font-extrabold text-slate-900">Verified Diner Reviews</h3>
+          
+          <div class="bg-slate-50 p-4 rounded-2xl border space-y-3">
+            <span class="text-xs font-bold text-slate-700">Write a Review</span>
+            <div class="flex gap-2">
+              <select id="rev-rating" class="border rounded-lg p-2 text-xs">
+                <option value="5">★ 5 - Exceptional</option>
+                <option value="4">★ 4 - Very Good</option>
+                <option value="3">★ 3 - Average</option>
+              </select>
+              <input id="rev-comment" type="text" placeholder="Share your dining experience..." class="flex-1 border p-2 rounded-lg text-xs">
+              <button onclick="postReview()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold">Post Review</button>
+            </div>
+          </div>
+
+          <div id="port-reviews-list" class="space-y-3"></div>
+        </div>
+
+        <div id="section-reserve" class="p-8 bg-white border-t border-slate-200 space-y-6">
+          <h3 class="text-xl font-extrabold text-slate-900">Table Reservation & Seating Options</h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Date & Time</label>
+              <input id="res-time" type="datetime-local" class="w-full border p-2.5 rounded-xl text-xs font-semibold">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Guests</label>
+              <select id="res-size" onchange="calculateBillSplit()" class="w-full border p-2.5 rounded-xl text-xs font-semibold">
+                <option value="2">2 Guests</option>
+                <option value="4">4 Guests</option>
+                <option value="6">6 Guests</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Seating Area</label>
+              <select id="res-table" class="w-full border p-2.5 rounded-xl text-xs font-semibold">
+                <option value="Window">Window View Table</option>
+                <option value="Outdoor">Outdoor Terrace</option>
+                <option value="VIP">VIP Private Booth</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">Coupon Code</label>
+              <input id="res-coupon" type="text" placeholder="e.g. CULTU20" class="w-full border p-2.5 rounded-xl text-xs font-semibold">
+            </div>
+          </div>
+
+          <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex justify-between items-center text-xs">
+            <div>
+              <span class="font-bold text-emerald-900 block">Group Bill Splitter</span>
+              <span class="text-emerald-700" id="bill-split-info">Estimated Pre-order Total: ₹0 (₹0 per guest)</span>
+            </div>
+            <span class="bg-emerald-200 text-emerald-900 font-bold px-3 py-1 rounded-full text-[10px]">CultuPoints Earnable: +50 pts</span>
+          </div>
+
+          <button onclick="submitReservationFromPortfolio()" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3.5 rounded-xl text-xs shadow-lg shadow-rose-200 transition">
+            Confirm Table Reservation
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-staff" class="hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+          <h3 class="font-bold text-slate-900">Publish Off-Peak Coupon</h3>
+          <div class="space-y-3">
+            <input id="staff-resto-id" type="number" value="1" placeholder="Restaurant ID" class="w-full border p-2 rounded text-xs">
+            <input id="new-code" type="text" placeholder="Code (e.g. HAPPY20)" class="w-full border p-2 rounded text-xs">
+            <input id="new-discount" type="number" placeholder="Discount %" class="w-full border p-2 rounded text-xs">
+            <button onclick="createCoupon()" class="w-full bg-slate-900 text-white py-2 rounded text-xs font-bold">Publish Code</button>
+          </div>
+        </div>
+        
+        <div class="bg-white p-6 rounded-2xl border shadow-sm space-y-4 md:col-span-2">
+          <h3 class="font-bold text-slate-900">Live Desk Queue & Walk-In Waitlist</h3>
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead><tr class="border-b"><th class="pb-2">ID</th><th class="pb-2">Guest</th><th class="pb-2">Party</th><th class="pb-2">Timing</th><th class="pb-2">Status</th></tr></thead>
+            <tbody id="staff-booking-list" class="divide-y"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="user-profile-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+      <div class="p-6 bg-slate-900 text-white flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div id="modal-prof-avatar" class="w-14 h-14 bg-rose-500 rounded-2xl font-black text-xl flex items-center justify-center text-white">A</div>
+          <div>
+            <h3 id="modal-prof-name" class="font-bold text-lg">Aarav Sharma</h3>
+            <span class="text-xs text-slate-400">CultuEats Verified Diner</span>
+          </div>
+        </div>
+        <button onclick="closeUserProfile()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+      </div>
+
+      <div class="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
+        <div class="space-y-2">
+          <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Earned City Badges</h4>
+          <div id="modal-prof-badges" class="flex gap-2 flex-wrap">
+            <span class="bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-3 py-1 rounded-full">🍛 Ahmedabad Foodie Badge</span>
+            <span class="bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold text-xs px-3 py-1 rounded-full">🥢 Pan-Asian Explorer</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Reviewed Restaurants</h4>
+          <div id="modal-prof-reviews" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="terms-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+      <div class="p-6 border-b flex justify-between items-center">
+        <h3 class="font-extrabold text-slate-900 text-lg">CultuEats Terms & Conditions</h3>
+        <button onclick="closeTermsModal()" class="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+      </div>
+      <div class="p-6 overflow-y-auto space-y-4 text-xs text-slate-600 leading-relaxed">
+        <p><strong>Last Updated: 04/09/2026</strong></p>
+        <p>Welcome to CultuEats ("Platform", "we", "us"). These Terms & Conditions govern your access to and use of our platform, including restaurant discovery, menus, ratings, reviews, pre-ordering, and table reservations.</p>
+        
+        <h4 class="font-bold text-slate-900 text-sm">1. About the Platform</h4>
+        <p>CultuEats is a food discovery and reservation platform connecting customers with restaurants and food businesses. Users can search restaurants by location or city, view menus, submit reviews, earn city badges, pre-order meals, and reserve tables.</p>
+
+        <h4 class="font-bold text-slate-900 text-sm">2. Eligibility</h4>
+        <p>You must be legally capable of entering into a binding agreement to use the Platform. The information you provide must be accurate and current.</p>
+
+        <h4 class="font-bold text-slate-900 text-sm">3. User Accounts</h4>
+        <p>3.1 Registration information must be kept accurate.<br>
+        3.2 You are responsible for keeping credentials confidential.</p>
+
+        <h4 class="font-bold text-slate-900 text-sm">4. Customer Terms</h4>
+        <p>4.1 Restaurant Information displayed on the Platform includes menus, prices, operating hours, ratings, reviews, dish tags, and location data.<br>
+        4.2 Reservations are confirmed upon restaurant or system verification.</p>
+
+        <h4 class="font-bold text-slate-900 text-sm">5. Coupons & Offers</h4>
+        <p>Coupons are non-transferable and subject to published restaurant conditions and expiration times.</p>
+      </div>
+      <div class="p-4 border-t bg-slate-50 text-right">
+        <button onclick="closeTermsModal()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-bold">I Agree & Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="auth-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl space-y-6">
+      <div class="px-6 pt-6 flex justify-between items-center border-b pb-4">
+        <h3 id="auth-modal-title" class="font-extrabold text-slate-900 text-lg">Log in</h3>
+        <button onclick="closeAuthModal()" class="text-slate-400 font-bold">✕</button>
+      </div>
+      <div class="px-6 space-y-4 pb-6">
+        <input id="modal-email" type="email" placeholder="Email Address" class="w-full border p-2.5 rounded-xl text-xs">
+        <input id="modal-pass" type="password" placeholder="Password" class="w-full border p-2.5 rounded-xl text-xs">
+        <button onclick="submitAuth()" class="w-full bg-rose-500 text-white font-bold py-3 rounded-xl text-xs shadow-md shadow-rose-200">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let currentUser = { name: "Aarav Sharma", email: "aarav@example.com", city: "Ahmedabad" };
+    let preOrderTotal = 0;
+    let currentSelectedResto = null;
+
+    // Database with Cities, User Reviews & Badges
+    const sampleRestaurants = [
+      {
+        id: 1,
+        name: "Mainland China & Dim Sum Bar",
+        city: "Ahmedabad",
+        cuisine: "Pan-Asian",
+        rating: 4.8,
+        address: "Near Gulmohar Park Mall, Satellite, Ahmedabad",
+        lat: 23.0225,
+        lng: 72.5714,
+        timings: "12:00 PM – 11:30 PM",
+        badges: ["🔥 Top Rated", " Michelin Level", "🥢 Pan-Asian Certified"],
+        cover: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+        reviews: [
+          { user: "Aarav Sharma", rating: 5, comment: "Exquisite dim sum spread! Earned my Ahmedabad Foodie Badge." },
+          { user: "Priya S.", rating: 4, comment: "Hakka noodles were fantastic. Quick service." }
+        ],
+        menuItems: [
+          { id: 101, name: "Truffle & Edamame Crystal Dim Sum", price: 480, desc: "Translucent dumplings with white truffle oil.", tag: "Vegetarian 🌿", spice: "🌶️ Mild" },
+          { id: 102, name: "Szechuan Chili Crispy Chicken", price: 520, desc: "Wok-tossed farm chicken with dried pepper pods.", tag: "Non-Veg 🍗", spice: "🔥🔥 Spicy" }
+        ]
+      },
+      {
+        id: 2,
+        name: "Grand Vishalla Heritage Thali",
+        city: "Ahmedabad",
+        cuisine: "Gujarati Thali",
+        rating: 4.9,
+        address: "Vasna APMC Market Road, Ahmedabad",
+        lat: 23.0010,
+        lng: 72.5400,
+        timings: "11:00 AM – 10:30 PM",
+        badges: ["👑 Heritage Spot", "🌱 100% Pure Veg", "🏅 Popular Choice"],
+        cover: "https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=1200&q=80",
+        reviews: [
+          { user: "Aarav Sharma", rating: 5, comment: "Best village thali experience in Gujarat!" }
+        ],
+        menuItems: [
+          { id: 103, name: "Royal Kathiyawadi Unlimited Thali", price: 650, desc: "4 authentic curries, Ringan Bhartu, Bajra Rotla, Ghee & Jaggery.", tag: "Pure Veg 🌱", spice: "🌶️ Medium" }
+        ]
+      }
+    ];
+
+    function switchView(viewName) {
+      ['discover', 'portfolio', 'staff'].forEach(v => {
+        document.getElementById(`view-${v}`).classList.add('hidden');
+      });
+      document.getElementById(`view-${viewName}`).classList.remove('hidden');
+      if (viewName === 'discover') setTimeout(() => map.invalidateSize(), 200);
+      if (viewName === 'staff') loadStaffBookings(1);
+    }
+
+    let map = L.map('map').setView([23.0225, 72.5714], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let markers = [];
+
+    function renderGrid(restaurants) {
+      const grid = document.getElementById('restaurant-grid');
+      grid.innerHTML = '';
+      markers.forEach(m => map.removeLayer(m));
+
+      restaurants.forEach(rest => {
+        const marker = L.marker([rest.lat, rest.lng]).addTo(map).bindPopup(`<b>${rest.name}</b>`);
+        markers.push(marker);
+
+        const badgeHTML = rest.badges.map(b => `<span class="bg-rose-50 text-rose-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100">${b}</span>`).join(' ');
+
+        grid.innerHTML += `
+          <div onclick="openPortfolio(${rest.id})" class="group cursor-pointer bg-white rounded-2xl overflow-hidden border border-slate-200 hover:shadow-xl transition-all duration-300">
+            <div class="relative h-48 bg-slate-100 overflow-hidden">
+              <img src="${rest.cover}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+              <span class="absolute top-3 right-3 bg-white/90 text-slate-900 font-bold text-xs px-2.5 py-1 rounded-full">★ ${rest.rating}</span>
+            </div>
+            <div class="p-4 space-y-2">
+              <div class="flex items-center gap-1.5 flex-wrap">${badgeHTML}</div>
+              <h3 class="font-bold text-slate-900 group-hover:text-rose-500 text-sm">${rest.name}</h3>
+              <p class="text-xs text-slate-500 line-clamp-1">📍 ${rest.city} • ${rest.address}</p>
+            </div>
+          </div>`;
+      });
+    }
+
+    function openPortfolio(restoId) {
+      const resto = sampleRestaurants.find(r => r.id === restoId);
+      if (!resto) return;
+      currentSelectedResto = resto;
+
+      document.getElementById('port-title').innerText = resto.name;
+      document.getElementById('port-address').innerText = `📍 ${resto.address}`;
+      document.getElementById('port-timings').innerText = `🕒 Operating Hours: ${resto.timings}`;
+      document.getElementById('port-rating').innerText = `★ ${resto.rating}`;
+      document.getElementById('port-cover').src = resto.cover;
+
+      document.getElementById('port-badges').innerHTML = resto.badges.map(b => `<span class="bg-rose-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">${b}</span>`).join(' ');
+
+      // Menu with Pre-order toggle
+      const menuContainer = document.getElementById('port-big-menu');
+      menuContainer.innerHTML = '';
+      preOrderTotal = 0;
+      calculateBillSplit();
+
+      resto.menuItems.forEach(item => {
+        menuContainer.innerHTML += `
+          <div class="bg-white p-4 rounded-2xl border flex justify-between items-center">
+            <div class="space-y-1">
+              <h4 class="font-bold text-slate-900 text-sm">${item.name}</h4>
+              <p class="text-xs text-slate-500">${item.desc}</p>
+              <div class="flex gap-2 text-[10px] font-bold">
+                <span class="text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">${item.tag}</span>
+                <span class="text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">${item.spice}</span>
+              </div>
+            </div>
+            <div class="text-right space-y-2">
+              <span class="text-xs font-bold text-emerald-600 block">₹${item.price}</span>
+              <button onclick="togglePreOrder(${item.price}, this)" class="bg-slate-100 border text-slate-700 hover:bg-rose-500 hover:text-white text-[10px] font-bold px-3 py-1 rounded-lg transition">
+                + Pre-Order
+              </button>
+            </div>
+          </div>`;
+      });
+
+      renderReviews(resto);
+      switchView('portfolio');
+    }
+
+    function togglePreOrder(price, btn) {
+      if (btn.classList.contains('bg-rose-500')) {
+        btn.classList.remove('bg-rose-500', 'text-white');
+        btn.classList.add('bg-slate-100', 'text-slate-700');
+        btn.innerText = '+ Pre-Order';
+        preOrderTotal -= price;
+      } else {
+        btn.classList.add('bg-rose-500', 'text-white');
+        btn.classList.remove('bg-slate-100', 'text-slate-700');
+        btn.innerText = '✓ Added';
+        preOrderTotal += price;
+      }
+      calculateBillSplit();
+    }
+
+    function calculateBillSplit() {
+      const guests = parseInt(document.getElementById('res-size').value) || 2;
+      const perGuest = Math.round(preOrderTotal / guests);
+      document.getElementById('bill-split-info').innerText = `Estimated Pre-order Total: ₹${preOrderTotal} (₹${perGuest} per guest)`;
+    }
+
+    function renderReviews(resto) {
+      const list = document.getElementById('port-reviews-list');
+      list.innerHTML = '';
+      resto.reviews.forEach(r => {
+        list.innerHTML += `
+          <div class="p-3 bg-slate-50 rounded-xl border text-xs space-y-1">
+            <div class="flex justify-between font-bold text-slate-800">
+              <button onclick="openUserProfile('${r.user}')" class="text-rose-600 hover:underline">
+                👤 ${r.user} <span class="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md ml-1">Ahmedabad Badge 🍛</span>
+              </button>
+              <span class="text-amber-500">★ ${r.rating}</span>
+            </div>
+            <p class="text-slate-600">${r.comment}</p>
+          </div>`;
+      });
+    }
+
+    function postReview() {
+      if (!currentSelectedResto) return;
+      const rating = document.getElementById('rev-rating').value;
+      const comment = document.getElementById('rev-comment').value;
+      if (!comment) return alert('Please enter a comment');
+
+      const user = currentUser ? currentUser.name : 'Aarav Sharma';
+      currentSelectedResto.reviews.unshift({ user, rating, comment });
+      renderReviews(currentSelectedResto);
+      document.getElementById('rev-comment').value = '';
+    }
+
+    // Public Profile Viewer
+    function openUserProfile(userName) {
+      document.getElementById('modal-prof-name').innerText = userName;
+      document.getElementById('modal-prof-avatar').innerText = userName[0].toUpperCase();
+
+      // Collect all reviews left by this user across restaurants
+      const reviewsContainer = document.getElementById('modal-prof-reviews');
+      reviewsContainer.innerHTML = '';
+      
+      sampleRestaurants.forEach(resto => {
+        resto.reviews.filter(r => r.user === userName).forEach(r => {
+          reviewsContainer.innerHTML += `
+            <div class="p-3 bg-slate-50 border rounded-xl text-xs space-y-1">
+              <div class="flex justify-between font-bold text-slate-800">
+                <span>At ${resto.name} (${resto.city})</span>
+                <span class="text-amber-500">★ ${r.rating}</span>
+              </div>
+              <p class="text-slate-600">"${r.comment}"</p>
+            </div>
+          `;
+        });
+      });
+
+      if (!reviewsContainer.innerHTML) {
+        reviewsContainer.innerHTML = `<p class="text-xs text-slate-400">No public reviews submitted yet.</p>`;
+      }
+
+      document.getElementById('user-profile-modal').classList.remove('hidden');
+    }
+
+    function closeUserProfile() { document.getElementById('user-profile-modal').classList.add('hidden'); }
+    function openTermsModal() { document.getElementById('terms-modal').classList.remove('hidden'); }
+    function closeTermsModal() { document.getElementById('terms-modal').classList.add('hidden'); }
+    function openAuthModal(mode) { document.getElementById('auth-modal').classList.remove('hidden'); }
+    function closeAuthModal() { document.getElementById('auth-modal').classList.add('hidden'); }
+
+    async function submitAuth() {
+      currentUser = { name: "Aarav Sharma", email: "aarav@example.com" };
+      document.getElementById('auth-unlogged').classList.add('hidden');
+      document.getElementById('auth-logged').classList.remove('hidden');
+      closeAuthModal();
+    }
+
+    async function submitReservationFromPortfolio() {
+      const time = document.getElementById('res-time').value || '2026-09-04T20:00';
+      const size = document.getElementById('res-size').value;
+      const coupon = document.getElementById('res-coupon').value;
+      const tableArea = document.getElementById('res-table').value;
+
+      const res = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          restaurant_id: currentSelectedResto ? currentSelectedResto.id : 1,
+          customer_name: currentUser.name,
+          party_size: size,
+          booking_time: time,
+          coupon_code: coupon
+        })
+      });
+      const data = await res.json();
+      if (res.ok) alert(`Reservation Confirmed for ${tableArea} Seating! Discount: ${data.discount}%. Earned 50 CultuPoints!`);
+      else alert(data.error);
+    }
+
+    function logout() { location.reload(); }
+
+    renderGrid(sampleRestaurants);
+  </script>
+</body>
+</html>
