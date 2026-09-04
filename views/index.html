@@ -3,11 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CultuEats - Zomato Style Social Dining</title>
+  <title>CultuEats - Social Dining & Discovery Map</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    #map { height: 380px; width: 100%; border-radius: 1.5rem; z-index: 10; }
+  </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="flex flex-col min-h-screen bg-stone-50">
   <header class="bg-white border-b border-stone-200 sticky top-0 z-40 shadow-sm">
     <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
       <a href="/" class="flex items-center gap-2.5">
@@ -24,14 +29,24 @@
   </header>
 
   <main class="max-w-7xl mx-auto px-6 py-8 flex-1 w-full space-y-8">
-    <div class="bg-stone-900 text-white rounded-3xl p-8 sm:p-12 zomato-gradient shadow-2xl space-y-4">
+    <div class="bg-stone-900 text-white rounded-3xl p-8 sm:p-12 zomato-gradient shadow-2xl space-y-2">
       <h1 class="text-3xl sm:text-5xl font-black leading-tight">Find & Pre-Order Great Food Near You</h1>
+      <p class="text-amber-100 text-sm">Explore interactive spots and instant booking.</p>
     </div>
+
+    <!-- Map Container -->
+    <div class="space-y-3">
+      <h2 class="text-xl font-black text-stone-900">?? Interactive Dining Map</h2>
+      <div id="map" class="shadow-md border border-stone-200"></div>
+    </div>
+
+    <!-- Restaurant Listings Grid -->
     <div class="space-y-4">
       <h2 class="text-2xl font-black text-stone-900">Approved Restaurants</h2>
       <div id="restaurant-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
   </main>
+
   <script src="/js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "Mainland China & Dim Sum Bar",
+    "city": "Ahmedabad",
+    "cuisine": "Pan-Asian",
+    "rating": 4.8,
+    "address": "Satellite, Ahmedabad",
+    "lat": 23.0225,
+    "lng": 72.5714,
+    "cover": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
+    "status": "Approved"
+  }
+]
