@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CultuEats Admin Control Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="bg-stone-100 flex min-h-screen">
+  <main class="flex-1 p-6 sm:p-10 space-y-8 overflow-y-auto">
+    <div class="flex justify-between items-center border-b border-stone-200 pb-5">
+      <h1 class="text-2xl font-black text-stone-900">Executive Management Panel</h1>
+      <a href="/" class="text-xs font-bold bg-stone-900 text-white px-3 py-2 rounded-lg">Exit</a>
+    </div>
+    <section id="pending-section" class="bg-white rounded-3xl border border-stone-200 p-6">
+      <h2 class="text-base font-black text-stone-900">?? Pending Restaurant Partner Registrations</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b bg-stone-50 text-[11px] uppercase text-stone-500 font-bold">
+              <th class="p-4">Restaurant Name</th>
+              <th class="p-4">Location & Cuisine</th>
+              <th class="p-4">Owner Email</th>
+              <th class="p-4">Status</th>
+              <th class="p-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pending-list"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="customer-section" class="bg-white rounded-3xl border border-stone-200 p-6">
+      <h2 class="text-base font-black text-stone-900">?? Registered Customer Accounts</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b bg-stone-50 text-[11px] uppercase text-stone-500 font-bold">
+              <th class="p-4">Customer Name</th>
+              <th class="p-4">Email</th>
+              <th class="p-4">Tier Level</th>
+              <th class="p-4">Bookings</th>
+              <th class="p-4">Account Status</th>
+            </tr>
+          </thead>
+          <tbody id="customer-list"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/js/admin.js"></script>
+</body>
+</html>
