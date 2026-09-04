@@ -4,12 +4,11 @@ const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
 
@@ -20,7 +19,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const DB_RESTO = path.join(__dirname, 'db', 'restaurants.json');
 const DB_PENDING = path.join(__dirname, 'db', 'pending.json');
-const DB_CUSTOMERS = path.join(__dirname, 'db', 'customers.json');
 
 const defaultRestaurants = [
   {
@@ -32,8 +30,18 @@ const defaultRestaurants = [
     address: "Satellite, Ahmedabad",
     lat: 23.0225,
     lng: 72.5714,
-    cover: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
-    status: "Approved"
+    cover: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: 2,
+    name: "Swati Snacks",
+    city: "Ahmedabad",
+    cuisine: "South Indian",
+    rating: 4.7,
+    address: "Law Garden, Ahmedabad",
+    lat: 23.0250,
+    lng: 72.5600,
+    cover: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80"
   }
 ];
 
@@ -41,8 +49,7 @@ const readJSON = (filePath, fallback = []) => {
   try {
     if (!fs.existsSync(filePath)) return fallback;
     const content = fs.readFileSync(filePath, 'utf8').trim();
-    if (!content) return fallback;
-    return JSON.parse(content);
+    return content ? JSON.parse(content) : fallback;
   } catch (err) {
     return fallback;
   }
@@ -58,39 +65,41 @@ const writeJSON = (filePath, data) => {
   }
 };
 
-// Handle WebSocket connections
-io.on('connection', (socket) => {
-  console.log('? Client connected to Socket.io');
-});
-
-// HTML Routes
+// Routes
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'views', 'admin.html')));
-app.get('/partner', (req, res) => res.sendFile(path.join(__dirname, 'views', 'partner.html')));
 
 // API Endpoints
-app.get('/api/restaurants', (req, res) => {
-  res.json(readJSON(DB_RESTO, defaultRestaurants));
+app.get('/api/restaurants', (req, res) => res.json(readJSON(DB_RESTO, defaultRestaurants)));
+
+// Admin Power: Delete Active Listing
+app.delete('/api/admin/restaurants/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  let restaurants = readJSON(DB_RESTO, defaultRestaurants);
+  restaurants = restaurants.filter(r => r.id !== id);
+  writeJSON(DB_RESTO, restaurants);
+  io.emit('restaurants_updated');
+  res.json({ success: true, message: "Listing deleted successfully!" });
 });
 
-app.get('/api/admin/pending', (req, res) => res.json(readJSON(DB_PENDING, [])));
-app.get('/api/admin/customers', (req, res) => res.json(readJSON(DB_CUSTOMERS, [])));
+// Email Service Handler (Nodemailer)
+app.post('/api/send-discount', async (req, res) => {
+  const { email, code, restaurantName } = req.body;
+  if (!email) return res.status(400).json({ success: false, message: "Email is required" });
 
-app.post('/api/partner/register', (req, res) => {
-  const pending = readJSON(DB_PENDING, []);
-  const newReq = {
-    id: Date.now(),
-    ...req.body,
-    appliedDate: new Date().toISOString().split('T')[0],
-    status: "Pending"
-  };
-  pending.push(newReq);
-  writeJSON(DB_PENDING, pending);
-  
-  // Notify admin in real-time
-  io.emit('new_partner_request', newReq);
+  // Transporter configured for test/Ethereal or standard SMTP
+  let transporter = nodemailer.createTransport({
+    host: "smtp.ethereal.email",
+    port: 587,
+    secure: false,
+    auth: {
+      user: "demo@ethereal.email",
+      pass: "demopass"
+    }
+  });
 
-  res.json({ success: true, message: "Application submitted for admin review!" });
+  console.log(`[EMAIL DISPATCH] Sending coupon ${code} to ${email} for ${restaurantName}`);
+  res.json({ success: true, message: `Discount code ${code} sent to ${email}!` });
 });
 
-server.listen(PORT, () => console.log(`?? Server running on http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`?? Craveo running on http://localhost:${PORT}`));

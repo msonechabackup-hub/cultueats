@@ -1,5 +1,5 @@
+ï»¿let selectedRestaurant = null;
 let map;
-let markersGroup;
 
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
@@ -7,73 +7,87 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initMap() {
-  const mapEl = document.getElementById('map');
-  if (!mapEl) return;
-
-  try {
-    map = L.map('map').setView([23.0225, 72.5714], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
-    
-    markersGroup = L.layerGroup().addTo(map);
-
-    // Force tile recalculation after DOM load
-    setTimeout(() => { if (map) map.invalidateSize(); }, 400);
-  } catch (err) {
-    console.error("Leaflet initialization error:", err);
-  }
+  map = L.map('map').setView([22.3039, 70.8022], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 }
 
-async function fetchRestaurants() {
+function selectCuisine(cuisine) {
+  const splash = document.getElementById('splash-screen');
+  if (splash) {
+    splash.classList.add('opacity-0', 'pointer-events-none');
+    setTimeout(() => splash.remove(), 700);
+  }
+  fetchRestaurants(cuisine);
+}
+
+async function fetchRestaurants(cuisine = '') {
   try {
-    const res = await fetch('/api/restaurants');
+    const url = cuisine ? `/api/restaurants?cuisine=${encodeURIComponent(cuisine)}` : '/api/restaurants';
+    const res = await fetch(url);
     const data = await res.json();
     renderRestaurants(data);
-    renderMapMarkers(data);
   } catch (err) {
-    console.error("API error:", err);
+    console.error('Failed to load restaurants:', err);
   }
-}
-
-function renderMapMarkers(restaurants) {
-  if (!map || !markersGroup || !Array.isArray(restaurants)) return;
-  markersGroup.clearLayers();
-
-  const bounds = [];
-  restaurants.forEach(r => {
-    const lat = parseFloat(r.lat) || 23.0225;
-    const lng = parseFloat(r.lng) || 72.5714;
-    const marker = L.marker([lat, lng]).bindPopup(`<b>${r.name}</b><br>${r.cuisine || ''}`);
-    markersGroup.addLayer(marker);
-    bounds.push([lat, lng]);
-  });
-
-  if (bounds.length > 0) map.fitBounds(bounds, { padding: [20, 20], maxZoom: 14 });
-  map.invalidateSize();
 }
 
 function renderRestaurants(restaurants) {
-  const grid = document.getElementById('restaurant-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  if (!Array.isArray(restaurants) || restaurants.length === 0) {
-    grid.innerHTML = '<p class="text-xs text-stone-500">No restaurants available.</p>';
-    return;
-  }
-
-  restaurants.forEach(r => {
-    grid.innerHTML += `
-      <div class="bg-white rounded-2xl border border-stone-200 p-4 space-y-2 shadow-sm">
-        <div class="h-32 bg-stone-100 rounded-xl overflow-hidden">
-          <img src="${r.cover || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80'}" class="w-full h-full object-cover">
+  const container = document.getElementById('restaurant-grid');
+  if (!container) return;
+  
+  container.innerHTML = restaurants.map(r => `
+    <div class="bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl p-5 transition duration-300 flex flex-col justify-between">
+      <div>
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="font-black text-lg text-white">${r.name}</h3>
+          <span class="text-xs bg-amber-500/10 text-amber-400 font-bold px-2.5 py-1 rounded-lg border border-amber-500/20">${r.cuisine}</span>
         </div>
-        <span class="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200">${r.cuisine || 'Dining'}</span>
-        <h3 class="font-bold text-stone-900 text-sm">${r.name}</h3>
-        <p class="text-[11px] text-stone-500">?? ${r.address || r.city}</p>
+        <p class="text-xs text-slate-400 mb-4">${r.description || 'Authentic regional dining experience.'}</p>
       </div>
-    `;
-  });
+      <button onclick="triggerBooking('${r._id}', '${r.name}')" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2.5 rounded-xl text-xs transition">
+        Reserve Table
+      </button>
+    </div>
+  `).join('');
+}
+
+function triggerBooking(id, name) {
+  selectedRestaurant = { id, name };
+  document.getElementById('ad-modal').classList.remove('hidden');
+}
+
+function startAd() {
+  document.getElementById('ad-prompt').classList.add('hidden');
+  document.getElementById('ad-viewer').classList.remove('hidden');
+  const bar = document.getElementById('ad-progress');
+  bar.style.width = '100%';
+  
+  setTimeout(() => {
+    document.getElementById('ad-viewer').classList.add('hidden');
+    document.getElementById('ad-email-form').classList.remove('hidden');
+  }, 5000);
+}
+
+function skipAd() {
+  document.getElementById('ad-modal').classList.add('hidden');
+}
+
+async function sendDiscountEmail() {
+  const email = document.getElementById('user-email').value;
+  if (!email) return alert('Please enter your email');
+  
+  try {
+    const res = await fetch('/api/book-discount', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, restaurantName: selectedRestaurant.name })
+    });
+    const data = await res.json();
+    alert(data.message || 'Discount code sent!');
+    document.getElementById('ad-modal').classList.add('hidden');
+  } catch (err) {
+    alert('Error sending code.');
+  }
 }
