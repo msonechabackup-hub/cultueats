@@ -10,20 +10,22 @@ function initMap() {
   const mapElement = document.getElementById('map');
   if (!mapElement) return;
 
-  // Default centered at Ahmedabad coordinates
-  map = L.map('map').setView([23.0225, 72.5714], 12);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
-
-  markersGroup = L.layerGroup().addTo(map);
+  try {
+    map = L.map('map').setView([23.0225, 72.5714], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+    markersGroup = L.layerGroup().addTo(map);
+  } catch (e) {
+    console.error("Map initialization failed:", e);
+  }
 }
 
 async function fetchRestaurants() {
   try {
     const res = await fetch('/api/restaurants');
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
     const data = await res.json();
     renderRestaurants(data);
     renderMapMarkers(data);
@@ -33,7 +35,7 @@ async function fetchRestaurants() {
 }
 
 function renderMapMarkers(restaurants) {
-  if (!map || !markersGroup) return;
+  if (!map || !markersGroup || !Array.isArray(restaurants)) return;
   markersGroup.clearLayers();
 
   const validBounds = [];
@@ -42,13 +44,12 @@ function renderMapMarkers(restaurants) {
     const lat = parseFloat(resto.lat);
     const lng = parseFloat(resto.lng);
 
-    // Guard against NaN or missing coordinates
     if (!isNaN(lat) && !isNaN(lng)) {
       const marker = L.marker([lat, lng])
         .bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px;">
-            <b style="font-size: 14px; color: #1c1917;">${resto.name}</b><br>
-            <span style="color: #ea580c; font-weight: bold;">${resto.cuisine || 'Restaurant'}</span><br>
+            <b style="font-size: 14px; color: #1c1917;">${resto.name || 'Restaurant'}</b><br>
+            <span style="color: #ea580c; font-weight: bold;">${resto.cuisine || 'Dining'}</span><br>
             <span style="color: #6b7280;">?? ${resto.address || ''}</span>
           </div>
         `);
@@ -67,8 +68,8 @@ function renderRestaurants(restaurants) {
   if (!grid) return;
   grid.innerHTML = '';
 
-  if (!restaurants || restaurants.length === 0) {
-    grid.innerHTML = `<p class="text-stone-500 text-sm">No approved restaurants yet.</p>`;
+  if (!Array.isArray(restaurants) || restaurants.length === 0) {
+    grid.innerHTML = `<p class="text-stone-500 text-sm col-span-full">No restaurants found right now.</p>`;
     return;
   }
 
